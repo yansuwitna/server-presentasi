@@ -28,7 +28,7 @@ io.on("connection", (socket) => {
 
   socket.on("createRoom", ({ token }) => {
     if (!rooms[token]) {
-      rooms[token] = { teacher: socket.id, halaman: 1 };
+      rooms[token] = { teacher: socket.id, halaman: 1, siswa: [] };
       socket.join(token);
       addLog(`Room ${token} dibuat guru dengan Halaman ${rooms[token].halaman}`);
     } else {
@@ -38,11 +38,10 @@ io.on("connection", (socket) => {
 
   socket.on("joinRoom", ({ token }) => {
     if (rooms[token]) {
-
-
       socket.join(token);
       socket.emit("joinSuccess", { msg: "Berhasil masuk" });
-      addLog(`Siswa masuk room ${token}`);
+      rooms[token].siswa.push(socket.id);
+      addLog(`Siswa masuk room ${token} jml ${rooms[token].siswa.length}`);
     } else {
       socket.emit("errorMessage", { msg: "Room tidak ditemukan atau belum dibuat guru." });
       // socket.emit("joinError", { msg: "Token salah / room tidak ada" });
@@ -68,21 +67,41 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    addLog(`User disconnected: ${socket.id}`);
-    // for (const token in rooms) {
-    //   if (rooms[token].teacher === socket.id) {
-    //     delete rooms[token];
-    //     io.to(token).emit("roomClosed", { msg: "Guru keluar, room ditutup" });
-    //     addLog(`Room ${token} dihapus karena guru keluar`);
-    //   }
-    // }
+    for (const token in rooms) {
+      const room = rooms[token];
+
+      // cek apakah siswa ada di list
+      const index = room.siswa.indexOf(socket.id);
+      if (index !== -1) {
+        room.siswa.splice(index, 1); // hapus dari list
+        console.log(`Siswa keluar dari room ${token}, total sekarang: ${room.siswa.length}`);
+      }
+
+      // jika guru disconnect, bisa hapus semua siswa
+      // if (room.teacher === socket.id) {
+      //   room.studentList = [];
+      //   room.siswa = 0;
+      //   console.log(`Guru keluar, semua siswa di room ${token} dihapus`);
+      // }
+    }
   });
+
+  // socket.on("disconnect", () => {
+  //   addLog(`User disconnected: ${socket.id}`);
+  //   for (const token in rooms) {
+  //     if (rooms[token].teacher === socket.id) {
+  //       jml = rooms[token].siswa - 1;
+  //       addLog(`Siswa Keluar ${token} dihapus karena guru keluar`);
+  //     }
+  //   }
+  // });
 });
 
 app.post("/reset", (req, res) => {
   const token = req.body.token;
   if (rooms[token]) {
     rooms[token].halaman = 1;
+    // rooms[token].siswa = [];
   }
 });
 
