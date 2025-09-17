@@ -74,27 +74,12 @@ io.on("connection", (socket) => {
       const index = room.siswa.indexOf(socket.id);
       if (index !== -1) {
         room.siswa.splice(index, 1); // hapus dari list
-        console.log(`Siswa keluar dari room ${token}, total sekarang: ${room.siswa.length}`);
       }
 
-      // jika guru disconnect, bisa hapus semua siswa
-      // if (room.teacher === socket.id) {
-      //   room.studentList = [];
-      //   room.siswa = 0;
-      //   console.log(`Guru keluar, semua siswa di room ${token} dihapus`);
-      // }
+      console.log(`Siswa keluar dari room ${token}, total sekarang: ${room.siswa.length}`);
     }
   });
 
-  // socket.on("disconnect", () => {
-  //   addLog(`User disconnected: ${socket.id}`);
-  //   for (const token in rooms) {
-  //     if (rooms[token].teacher === socket.id) {
-  //       jml = rooms[token].siswa - 1;
-  //       addLog(`Siswa Keluar ${token} dihapus karena guru keluar`);
-  //     }
-  //   }
-  // });
 });
 
 app.post("/reset", (req, res) => {
