@@ -51,16 +51,16 @@ io.on("connection", (socket) => {
     addLog(`Guru di room ${token} ganti halaman ke ${page}`);
   });
 
-  socket.on("disconnect", () => {
-    addLog(`User disconnected: ${socket.id}`);
-    for (const token in rooms) {
-      if (rooms[token].teacher === socket.id) {
-        delete rooms[token];
-        io.to(token).emit("roomClosed", { msg: "Guru keluar, room ditutup" });
-        addLog(`Room ${token} dihapus karena guru keluar`);
-      }
-    }
-  });
+  // socket.on("disconnect", () => {
+  //   addLog(`User disconnected: ${socket.id}`);
+  //   for (const token in rooms) {
+  //     if (rooms[token].teacher === socket.id) {
+  //       delete rooms[token];
+  //       io.to(token).emit("roomClosed", { msg: "Guru keluar, room ditutup" });
+  //       addLog(`Room ${token} dihapus karena guru keluar`);
+  //     }
+  //   }
+  // });
 });
 
 // halaman monitoring realtime
@@ -77,7 +77,7 @@ app.get("/", (req, res) => {
       </style>
     </head>
     <body>
-      <h1>Node.js App is running!</h1>
+      <h1>Node.js App is running! V1.0</h1>
       <hr>
       <div id="logs"></div>
 
