@@ -3,21 +3,22 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
+app.use(express.json());
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-const rooms = {}; 
+const rooms = {};
 let logs = []; // simpan log
 
-// function addLog(msg) {
-//   const logMsg = `[${new Date().toLocaleString()}] ${msg}`;
-//   console.log(logMsg);          // tampil di console server
-//   logs.push(logMsg);            // simpan di array
-//   io.emit("newLog", logMsg);    // kirim ke semua client yang terhubung
-// }
+function addLog(msg) {
+  const logMsg = `[${new Date().toLocaleString()}] ${msg}`;
+  console.log(logMsg);          // tampil di console server
+  logs.push(logMsg);            // simpan di array
+  io.emit("newLog", logMsg);    // kirim ke semua client yang terhubung
+}
 
 io.on("connection", (socket) => {
   addLog(`User connected: ${socket.id}`);
@@ -27,40 +28,62 @@ io.on("connection", (socket) => {
 
   socket.on("createRoom", ({ token }) => {
     if (!rooms[token]) {
-      rooms[token] = { teacher: socket.id };
+      rooms[token] = { teacher: socket.id, halaman: 1 };
       socket.join(token);
-      addLog(`Room ${token} dibuat guru`);
+      addLog(`Room ${token} dibuat guru dengan Halaman ${rooms[token].halaman}`);
     } else {
-      addLog(`Room ${token} sudah ada, tidak dibuat ulang`);
+      addLog(`Room ${token} sudah ada, tidak dibuat ulang dengan Halaman  ${rooms[token].halaman}`);
     }
   });
 
   socket.on("joinRoom", ({ token }) => {
     if (rooms[token]) {
+
+
       socket.join(token);
       socket.emit("joinSuccess", { msg: "Berhasil masuk" });
       addLog(`Siswa masuk room ${token}`);
     } else {
-      socket.emit("joinError", { msg: "Token salah / room tidak ada" });
+      socket.emit("errorMessage", { msg: "Room tidak ditemukan atau belum dibuat guru." });
+      // socket.emit("joinError", { msg: "Token salah / room tidak ada" });
       addLog(`Siswa gagal join, room ${token} tidak ditemukan`);
     }
   });
 
   socket.on("changePage", ({ token, page }) => {
     socket.to(token).emit("updatePage", page);
+    rooms[token].halaman = page;
+    io.to(token).emit("pageUpdate", { page });
     addLog(`Guru di room ${token} ganti halaman ke ${page}`);
   });
 
-  // socket.on("disconnect", () => {
-  //   addLog(`User disconnected: ${socket.id}`);
-  //   for (const token in rooms) {
-  //     if (rooms[token].teacher === socket.id) {
-  //       delete rooms[token];
-  //       io.to(token).emit("roomClosed", { msg: "Guru keluar, room ditutup" });
-  //       addLog(`Room ${token} dihapus karena guru keluar`);
-  //     }
-  //   }
-  // });
+  // Guru minta data halaman (saat refresh / masuk kembali)
+  socket.on("getPage", (token, callback) => {
+    addLog(`Cari Halaman dalam ${token}`);
+    if (rooms[token]) {
+      callback({ page: rooms[token].halaman });
+    } else {
+      callback({ error: "Room tidak ditemukan" });
+    }
+  });
+
+  socket.on("disconnect", () => {
+    addLog(`User disconnected: ${socket.id}`);
+    // for (const token in rooms) {
+    //   if (rooms[token].teacher === socket.id) {
+    //     delete rooms[token];
+    //     io.to(token).emit("roomClosed", { msg: "Guru keluar, room ditutup" });
+    //     addLog(`Room ${token} dihapus karena guru keluar`);
+    //   }
+    // }
+  });
+});
+
+app.post("/reset", (req, res) => {
+  const token = req.body.token;
+  if (rooms[token]) {
+    rooms[token].halaman = 1;
+  }
 });
 
 // halaman monitoring realtime
