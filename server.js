@@ -12,12 +12,12 @@ const io = new Server(server, {
 const rooms = {}; 
 let logs = []; // simpan log
 
-function addLog(msg) {
-  const logMsg = `[${new Date().toLocaleString()}] ${msg}`;
-  console.log(logMsg);          // tampil di console server
-  logs.push(logMsg);            // simpan di array
-  io.emit("newLog", logMsg);    // kirim ke semua client yang terhubung
-}
+// function addLog(msg) {
+//   const logMsg = `[${new Date().toLocaleString()}] ${msg}`;
+//   console.log(logMsg);          // tampil di console server
+//   logs.push(logMsg);            // simpan di array
+//   io.emit("newLog", logMsg);    // kirim ke semua client yang terhubung
+// }
 
 io.on("connection", (socket) => {
   addLog(`User connected: ${socket.id}`);
