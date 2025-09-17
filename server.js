@@ -77,7 +77,7 @@ app.get("/", (req, res) => {
       </style>
     </head>
     <body>
-      <h1>Node.js App is running! V1.0</h1>
+      <h1>Node.js App is running! V1.00</h1>
       <hr>
       <div id="logs"></div>
 
