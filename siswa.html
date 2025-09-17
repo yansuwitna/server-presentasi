@@ -1,0 +1,22 @@
+<input type="text" id="roomToken" placeholder="Masukkan token 4 digit">
+<button id="joinRoom">Gabung</button>
+
+<div id="viewer">Halaman: 0</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const socket = io("https://ws.domainmu.com"); // ganti sesuai domain Node.js
+
+  document.getElementById("joinRoom").addEventListener("click", () => {
+    const token = document.getElementById("roomToken").value;
+    socket.emit("joinRoom", { token });
+  });
+
+  socket.on("joinSuccess", data => alert(data.msg));
+  socket.on("joinError", data => alert(data.msg));
+
+  socket.on("updatePage", (page) => {
+    document.getElementById("viewer").innerText = "Halaman: " + page;
+    // di sini nanti bisa diganti dengan PDF.js untuk pindah halaman
+  });
+</script>
