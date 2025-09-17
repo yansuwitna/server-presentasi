@@ -1,10 +1,11 @@
-
+const express = require("express");
+const http = require("http");
 const { Server } = require("socket.io");
 
-const express = require("express");
 const app = express();
+const server = http.createServer(app);
 
-const io = new Server({
+const io = new Server(server, {
   cors: { origin: "*" }
 });
 
@@ -39,18 +40,24 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
+
+    // bersihkan room jika guru disconnect
+    for (const token in rooms) {
+      if (rooms[token].teacher === socket.id) {
+        delete rooms[token];
+        io.to(token).emit("roomClosed", { msg: "Guru keluar, room ditutup" });
+        console.log(`Room ${token} dihapus karena guru keluar`);
+      }
+    }
   });
 });
 
-// port dari cPanel
+// port dari cPanel atau default 3000
 const port = process.env.PORT || 3000;
-io.listen(port);
-console.log("Socket.IO server running on port", port);
+server.listen(port, () => {
+  console.log("Server running on port", port);
+});
 
 app.get("/", (req, res) => {
   res.send("Node.js App is running!");
-});
-
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
 });
