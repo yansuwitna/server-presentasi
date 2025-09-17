@@ -17,6 +17,11 @@ function addLog(msg) {
   const logMsg = `[${new Date().toLocaleString()}] ${msg}`;
   console.log(logMsg);          // tampil di console server
   logs.push(logMsg);            // simpan di array
+
+  if (logs.length > 10) {
+    logs = logs.slice(-10);
+  }
+
   io.emit("newLog", logMsg);    // kirim ke semua client yang terhubung
 }
 
@@ -58,7 +63,7 @@ io.on("connection", (socket) => {
 
   // Guru minta data halaman (saat refresh / masuk kembali)
   socket.on("getPage", (token, callback) => {
-    addLog(`Cari Halaman dalam ${token}`);
+    addLog(`Cari Halaman dalam ${token} yaitu ${rooms[token].halaman}`);
     if (rooms[token]) {
       callback({ page: rooms[token].halaman });
     } else {
@@ -75,8 +80,8 @@ io.on("connection", (socket) => {
       if (index !== -1) {
         room.siswa.splice(index, 1); // hapus dari list
       }
+      addLog(`Siswa keluar dari room ${token}, total sekarang: ${room.siswa.length}`);
 
-      console.log(`Siswa keluar dari room ${token}, total sekarang: ${room.siswa.length}`);
     }
   });
 
