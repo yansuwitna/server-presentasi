@@ -31,40 +31,62 @@ io.on("connection", (socket) => {
   // kirim log lama ke client baru
   socket.emit("initLogs", logs);
 
+  //Guru Membuat Room
   socket.on("createRoom", ({ token }) => {
     if (!rooms[token]) {
-      rooms[token] = { teacher: socket.id, halaman: 1, siswa: [] };
+      rooms[token] = { halaman: 1, siswa: [] };
       socket.join(token);
+      io.to(token).emit("peserta", { peserta: rooms[token].siswa.length });
+
       addLog(`Room ${token} dibuat guru dengan Halaman ${rooms[token].halaman}`);
     } else {
       addLog(`Room ${token} sudah ada, tidak dibuat ulang dengan Halaman  ${rooms[token].halaman}`);
+      io.to(token).emit("peserta", { peserta: rooms[token].siswa.length });
+
     }
   });
 
-  socket.on("joinRoom", ({ token }) => {
+  //Siswa Join KE Room
+  socket.on("joinRoom", (token, callback) => {
     if (rooms[token]) {
       socket.join(token);
-      socket.emit("joinSuccess", { msg: "Berhasil masuk" });
+
       rooms[token].siswa.push(socket.id);
+      callback({ aktif: 1 });
+
+      io.to(token).emit("peserta", { peserta: rooms[token].siswa.length });
+
       addLog(`Siswa masuk room ${token} jml ${rooms[token].siswa.length}`);
     } else {
-      socket.emit("errorMessage", { msg: "Room tidak ditemukan atau belum dibuat guru." });
-      // socket.emit("joinError", { msg: "Token salah / room tidak ada" });
-      addLog(`Siswa gagal join, room ${token} tidak ditemukan`);
+      rooms[token] = { halaman: 1, siswa: [] };
+      socket.join(token);
+      rooms[token].siswa.push(socket.id);
+
+      //socket.emit("errorMessage", {aktif: 0, msg: "Room tidak ditemukan atau belum dibuat guru." });
+      //callback({ aktif: 0 });
+      //addLog(`Siswa gagal join, room ${token} tidak ditemukan`);
     }
   });
 
+  //Merubah Halaman dan melakukan Broadcast 
   socket.on("changePage", ({ token, page }) => {
-    socket.to(token).emit("updatePage", page);
-    rooms[token].halaman = page;
+    //Mengirim secara broadcast
+    try {
+      rooms[token].halaman = page;
+
+    } catch (e) {
+      rooms[token] = { halaman: 1, siswa: [] };
+      socket.join(token);
+    }
+
     io.to(token).emit("pageUpdate", { page });
     addLog(`Guru di room ${token} ganti halaman ke ${page}`);
   });
 
   // Guru minta data halaman (saat refresh / masuk kembali)
   socket.on("getPage", (token, callback) => {
-    addLog(`Cari Halaman dalam ${token} yaitu ${rooms[token].halaman}`);
     if (rooms[token]) {
+      addLog(`Cari Halaman dalam ${token} yaitu ${rooms[token].halaman}`);
       callback({ page: rooms[token].halaman });
     } else {
       callback({ error: "Room tidak ditemukan" });
@@ -80,6 +102,8 @@ io.on("connection", (socket) => {
       if (index !== -1) {
         room.siswa.splice(index, 1); // hapus dari list
       }
+      io.to(token).emit("peserta", { peserta: room.siswa.length });
+
       addLog(`Siswa keluar dari room ${token}, total sekarang: ${room.siswa.length}`);
 
     }
@@ -101,7 +125,7 @@ app.get("/", (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Node.js App</title>
+      <title>API SLIDE</title>
       <style>
         body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
         h1 { color: #fff; }
@@ -109,7 +133,7 @@ app.get("/", (req, res) => {
       </style>
     </head>
     <body>
-      <h1>Node.js App is running! V1.00</h1>
+      <h1>SERVER BERJALAN (V1.1)</h1>
       <hr>
       <div id="logs"></div>
 
@@ -117,6 +141,7 @@ app.get("/", (req, res) => {
       <script>
         const socket = io();
         const logsDiv = document.getElementById("logs");
+        const maxLogs = 20;
 
         socket.on("initLogs", (data) => {
           data.forEach(log => appendLog(log));
@@ -130,6 +155,9 @@ app.get("/", (req, res) => {
           const div = document.createElement("div");
           div.textContent = log;
           logsDiv.appendChild(div);
+          while (logsDiv.children.length > maxLogs) {
+            logsDiv.removeChild(logsDiv.firstChild);
+          }
           window.scrollTo(0, document.body.scrollHeight);
         }
       </script>
