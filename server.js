@@ -6,126 +6,111 @@ const app = express();
 app.use(express.json());
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
-const rooms = {};
-let logs = []; // simpan log
+const rooms = {}; // { token: { halaman, siswa: [] } }
+let logs = [];    // menyimpan log server
 
+// Fungsi menambahkan log
 function addLog(msg) {
   const logMsg = `[${new Date().toLocaleString()}] ${msg}`;
-  console.log(logMsg);          // tampil di console server
-  logs.push(logMsg);            // simpan di array
+  console.log(logMsg);  // tampil di console
+  logs.push(logMsg);    // simpan di array
+  if (logs.length > 20) logs = logs.slice(-20);
 
-  if (logs.length > 10) {
-    logs = logs.slice(-10);
-  }
-
-  io.emit("newLog", logMsg);    // kirim ke semua client yang terhubung
+  // Kirim log hanya ke monitoring room
+  io.to("monitoring").emit("newLog", logMsg);
 }
 
+// Socket.IO connection
 io.on("connection", (socket) => {
-  addLog(`User connected: ${socket.id}`);
 
-  // kirim log lama ke client baru
-  socket.emit("initLogs", logs);
+  // Join monitoring page
+  socket.on("joinMonitoring", () => {
+    socket.join("monitoring");
+    // Kirim semua log terakhir ke monitoring
+    socket.emit("initLogs", logs);
+  });
 
-  //Guru Membuat Room
-  socket.on("createRoom", ({ token }) => {
+  // Guru membuat room
+  socket.on("createRoom", ({ token }, callback) => {
     if (!rooms[token]) {
-      rooms[token] = { halaman: 1, siswa: [] };
+      rooms[token] = { halaman: 1, siswa: {} };
       socket.join(token);
-      io.to(token).emit("peserta", { peserta: rooms[token].siswa.length });
-
-      addLog(`Room ${token} dibuat guru dengan Halaman ${rooms[token].halaman}`);
+      addLog(`Room ${token} dibuat, halaman: 1, Siswa : 0`);
     } else {
-      addLog(`Room ${token} sudah ada, tidak dibuat ulang dengan Halaman  ${rooms[token].halaman}`);
-      io.to(token).emit("peserta", { peserta: rooms[token].siswa.length });
-
+      if (!rooms[token].halaman) rooms[token].halaman = 1;
+      socket.join(token);
+      addLog(`Room ${token} sudah ada, halaman: ${rooms[token].halaman}, Siswa : ${Object.keys(rooms[token].siswa).length}`);
     }
+    io.to(token).emit("peserta", { peserta: Object.values(rooms[token].siswa) });
+
+    callback({ peserta: Object.values(rooms[token].siswa), halaman: rooms[token].halaman });
   });
 
-  //Siswa Join KE Room
-  socket.on("joinRoom", (token, callback) => {
-    if (rooms[token]) {
-      socket.join(token);
+  // Siswa join room
+  socket.on("joinRoom", ({ token, nama }, callback) => {
+    //Membuat Room Jika Belum Ada
+    if (!rooms[token]) rooms[token] = { halaman: 1, siswa: {} };
 
-      rooms[token].siswa.push(socket.id);
-      callback({ aktif: 1 });
+    //Join Token 
+    socket.join(token);
 
-      io.to(token).emit("peserta", { peserta: rooms[token].siswa.length });
+    //Menambah Id Siswa Ke Token 
+    // rooms[token].siswa.push(socket.id, nama);
+    rooms[token].siswa[socket.id] = { nama }
 
-      addLog(`Siswa masuk room ${token} jml ${rooms[token].siswa.length}`);
-    } else {
-      rooms[token] = { halaman: 1, siswa: [] };
-      socket.join(token);
-      rooms[token].siswa.push(socket.id);
+    //Mengirim Informasi Ke (Masih Tidak Di Terima Server)
+    io.to(token).emit("peserta", { peserta: Object.values(rooms[token].siswa) });
 
-      //socket.emit("errorMessage", {aktif: 0, msg: "Room tidak ditemukan atau belum dibuat guru." });
-      //callback({ aktif: 0 });
-      //addLog(`Siswa gagal join, room ${token} tidak ditemukan`);
-    }
+    //Memberikan Informasi
+    addLog(`Siswa ${nama} masuk Room ${token}, peserta: ${rooms[token].siswa}, halaman: ${rooms[token].halaman}`);
+
+    //Mengirim Halaman Ke Siswa
+    callback({ halaman: rooms[token].halaman });
   });
 
-  //Merubah Halaman dan melakukan Broadcast 
+  // Guru ganti halaman
   socket.on("changePage", ({ token, page }) => {
-    //Mengirim secara broadcast
-    try {
-      rooms[token].halaman = page;
+    if (!rooms[token]) rooms[token] = { halaman: 1, siswa: [] };
 
-    } catch (e) {
-      rooms[token] = { halaman: 1, siswa: [] };
-      socket.join(token);
-    }
+    rooms[token].halaman = page;
 
-    io.to(token).emit("pageUpdate", { page });
-    addLog(`Guru di room ${token} ganti halaman ke ${page}`);
+    // Kirim pageUpdate ke semua di room token (guru + siswa)
+    addLog(`Guru Room ${token} pindah halaman: ${page}`);
+    io.to(token).emit("pageUpdate", { halaman: page });
+
   });
 
-  // Guru minta data halaman (saat refresh / masuk kembali)
-  socket.on("getPage", (token, callback) => {
-    if (rooms[token]) {
-      addLog(`Cari Halaman dalam ${token} yaitu ${rooms[token].halaman}`);
-      callback({ page: rooms[token].halaman });
-    } else {
-      callback({ error: "Room tidak ditemukan" });
-    }
-  });
-
+  // Disconnect
   socket.on("disconnect", () => {
+
     for (const token in rooms) {
-      const room = rooms[token];
+      if (rooms[token].siswa[socket.id]) {
+        addLog(`Siswa keluar Room ${token}, peserta: ${Object.values(rooms[token].siswa).length}`);
 
-      // cek apakah siswa ada di list
-      const index = room.siswa.indexOf(socket.id);
-      if (index !== -1) {
-        room.siswa.splice(index, 1); // hapus dari list
+        delete rooms[token].siswa[socket.id];
+        // Update peserta untuk semua di room
+        io.to(token).emit('peserta', { peserta: Object.values(rooms[token].siswa) });
       }
-      io.to(token).emit("peserta", { peserta: room.siswa.length });
-
-      addLog(`Siswa keluar dari room ${token}, total sekarang: ${room.siswa.length}`);
-
     }
   });
-
 });
 
+// Reset halaman via API
 app.post("/reset", (req, res) => {
   const token = req.body.token;
-  if (rooms[token]) {
-    rooms[token].halaman = 1;
-    // rooms[token].siswa = [];
-  }
+  if (rooms[token]) rooms[token].halaman = 1;
+  res.send({ success: true });
 });
 
-// halaman monitoring realtime
+// Halaman monitoring
 app.get("/", (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
     <head>
-      <title>API SLIDE</title>
+      <title>Monitoring Log Server</title>
       <style>
         body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
         h1 { color: #fff; }
@@ -133,20 +118,25 @@ app.get("/", (req, res) => {
       </style>
     </head>
     <body>
-      <h1>SERVER BERJALAN (V1.1)</h1>
+      <h1>Monitoring Server (V1.1)</h1>
       <hr>
       <div id="logs"></div>
 
       <script src="/socket.io/socket.io.js"></script>
       <script>
-        const socket = io();
         const logsDiv = document.getElementById("logs");
+        const socket = io();
         const maxLogs = 20;
 
+        // Join monitoring room
+        socket.emit("joinMonitoring");
+
+        // Terima log awal
         socket.on("initLogs", (data) => {
           data.forEach(log => appendLog(log));
         });
 
+        // Terima log baru
         socket.on("newLog", (log) => {
           appendLog(log);
         });
@@ -167,6 +157,4 @@ app.get("/", (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
-server.listen(port, () => {
-  console.log("Server running on port", port);
-});
+server.listen(port, () => console.log("Server running on port", port));
