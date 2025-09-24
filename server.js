@@ -64,7 +64,7 @@ io.on("connection", (socket) => {
     io.to(token).emit("peserta", { peserta: Object.values(rooms[token].siswa) });
 
     //Memberikan Informasi
-    addLog(`Siswa ${nama} masuk Room ${token}, peserta: ${rooms[token].siswa}, halaman: ${rooms[token].halaman}`);
+    addLog(`Siswa ${nama} masuk Room ${token}, peserta: ${Object.values(rooms[token].siswa).length}, halaman: ${rooms[token].halaman}`);
 
     //Mengirim Halaman Ke Siswa
     callback({ halaman: rooms[token].halaman });
@@ -87,9 +87,10 @@ io.on("connection", (socket) => {
 
     for (const token in rooms) {
       if (rooms[token].siswa[socket.id]) {
-        addLog(`Siswa keluar Room ${token}, peserta: ${Object.values(rooms[token].siswa).length}`);
-
+        $siswa = rooms[token].siswa[socket.id].nama;
         delete rooms[token].siswa[socket.id];
+        addLog(`Siswa ${$siswa} keluar Room ${token}, peserta: ${Object.values(rooms[token].siswa).length}`);
+
         // Update peserta untuk semua di room
         io.to(token).emit('peserta', { peserta: Object.values(rooms[token].siswa) });
       }
